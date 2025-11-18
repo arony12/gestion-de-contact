@@ -1,0 +1,144 @@
+import os
+
+# Créer le fichier dans le même dossier que le script
+DOSSIER_SCRIPT = os.path.dirname(os.path.abspath(__file__))
+FILENAME = os.path.join(DOSSIER_SCRIPT, "contacts.txt")
+
+# 1. Afficher les contacts qui se trouvent dans le fichier
+def afficher_contacts(contacts):
+    if not contacts:
+        print("Aucun contact.")
+        return
+    print(f"\nVos {len(contacts)} contacts :")
+    for i, (nom, telephone, email) in enumerate(contacts, 1):
+        print(f"{i}. {nom} - {telephone} - {email}")
+
+# 2. Charger les contacts depuis le fichier
+def charger_contacts():
+    contacts = []
+    try:
+        with open(FILENAME, "r", encoding="utf-8") as fichier:
+            for ligne in fichier:
+                ligne = ligne.strip()
+                if ligne:
+                    parties = ligne.split(";")
+                    if len(parties) == 2:
+                        nom, telephone = parties
+                        email = "Non renseigne"
+                        contacts.append([nom, telephone, email])
+                    elif len(parties) == 3:
+                        nom, telephone, email = parties
+                        contacts.append([nom, telephone, email])
+                    else:
+                        print(f"[ATTENTION] Ligne ignoree : {ligne}")
+            print(f"\n{len(contacts)} contact(s) charges")
+    except FileNotFoundError:
+        print("Nouveau fichier de contacts")
+    return contacts
+
+# 3. Ajouter un contact
+def ajouter_contact(contacts):
+    print("\nAjouter un contact :")
+    nom = input("Nom : ").strip()
+    telephone = input("Telephone : ").strip()
+    email = input("Email : ").strip()
+    if nom and telephone:
+        if not email:
+            email = "Non renseigne"
+        contacts.append([nom, telephone, email])
+        print(f"[OK] {nom} ajoute !")
+        # SAUVEGARDE AUTOMATIQUE
+        sauvegarder_contacts(contacts)
+    else:
+        print("[ERREUR] Nom et telephone obligatoires")
+
+# 4. Supprimer un contact
+def supprimer_contact(contacts):
+    if not contacts:
+        print("\nAucun contact a supprimer.")
+        return
+    afficher_contacts(contacts)
+    try:
+        choix = int(input("\nNumero du contact a supprimer (0 pour annuler) : "))
+        if choix == 0:
+            print("Suppression annulee")
+            return
+        if 1 <= choix <= len(contacts):
+            contact_supprime = contacts.pop(choix - 1)
+            print(f"[OK] Contact '{contact_supprime[0]}' supprime !")
+            # SAUVEGARDE AUTOMATIQUE
+            sauvegarder_contacts(contacts)
+        else:
+            print("[ERREUR] Numero invalide")
+    except ValueError:
+        print("[ERREUR] Veuillez entrer un numero valide")
+
+# 5. Rechercher un contact (NOM, TELEPHONE OU EMAIL)
+def rechercher_contact(contacts):
+    if not contacts:
+        print("\nAucun contact a rechercher.")
+        return
+    
+    print("\n--- RECHERCHE DE CONTACT ---")
+    terme = input("Rechercher (nom, telephone ou email) : ").strip().lower()
+    
+    if not terme:
+        print("[ERREUR] Veuillez entrer un terme de recherche")
+        return
+    
+    resultats = []
+    for nom, telephone, email in contacts:
+        # Recherche dans le nom, le téléphone ET l'email
+        if (terme in nom.lower() or 
+            terme in telephone.lower() or 
+            terme in email.lower()):
+            resultats.append([nom, telephone, email])
+    
+    if resultats:
+        print(f"\n{len(resultats)} contact(s) trouve(s) :")
+        for i, (nom, telephone, email) in enumerate(resultats, 1):
+            print(f"{i}. {nom} - {telephone} - {email}")
+    else:
+        print(f"[AUCUN RESULTAT] Aucun contact trouve avec '{terme}'")
+
+# 6. Sauvegarder les contacts
+def sauvegarder_contacts(contacts):
+    with open(FILENAME, "w", encoding="utf-8") as fichier:
+        for nom, telephone, email in contacts:
+            fichier.write(f"{nom};{telephone};{email}\n")
+    print(f"[OK] {len(contacts)} contacts enregistres")
+
+# Menu principal
+def menu():
+    print(f"Fichier : {os.path.abspath(FILENAME)}")
+    print("=== GESTIONNAIRE DE CONTACTS ===")
+    
+    contacts = charger_contacts()
+
+    while True:
+        print("\n Que voulez-vous faire ?")
+        print("1. Voir les contacts")
+        print("2. Ajouter un contact")
+        print("3. Supprimer un contact")
+        print("4. Rechercher un contact")
+        print("5. Sauver et quitter")
+
+        choix = input("Votre choix : ")
+
+        if choix == "1":
+            afficher_contacts(contacts)
+        elif choix == "2":
+            ajouter_contact(contacts)
+        elif choix == "3":
+            supprimer_contact(contacts)
+        elif choix == "4":
+            rechercher_contact(contacts)
+        elif choix == "5":
+            sauvegarder_contacts(contacts)
+            print("Au revoir !")
+            break
+        else:
+            print("[ERREUR] Choix invalide")
+
+if __name__ == "__main__":
+    menu()
