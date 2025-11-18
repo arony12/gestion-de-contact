@@ -1,0 +1,87 @@
+Absolument \! Après toute cette gymnastique pour configurer les API et les environnements, il vous faut un guide clair pour que votre ami puisse lancer le script sans vous déranger toutes les cinq minutes. 😉
+
+Voici un `README.md` simple, étape par étape, pour son PC :
+
+-----
+
+# 🤖 Guide de Démarrage Rapide : AppGestionContactsLocal
+
+Ce guide explique comment installer et lancer l'application d'importation de contacts.
+
+**Prérequis :** Votre ami (le développeur) a déjà ajouté votre adresse Gmail à la liste des **"Utilisateurs testeurs"** du projet Google Cloud.
+
+## Étape 1 : Préparation du Poste de Travail
+
+Assurez-vous que votre PC a **Python 3** installé.
+
+1.  **Copier les Fichiers :** Placez le dossier du projet (contenant `main.py`, `gmail_import.py`, et surtout **`credentials.json`**) où vous le souhaitez sur votre disque (ex: `C:\Projets\AppContacts`).
+2.  **Ouvrir le Terminal :** Ouvrez PowerShell ou l'Invite de Commande et naviguez jusqu'à ce dossier :
+    ```bash
+    cd C:\Projets\AppContacts
+    ```
+
+## Étape 2 : Création et Configuration de l'Environnement Virtuel
+
+Cette étape isole les dépendances du projet pour éviter les conflits.
+
+1.  **Créer l'Environnement :**
+
+    ```bash
+    python -m venv venv
+    ```
+
+2.  **Activer l'Environnement :**
+
+      * **Si vous utilisez PowerShell (recommandé) :**
+        ```bash
+        .\venv\Scripts\Activate
+        ```
+      * **Si vous utilisez CMD (Invite de commande) :**
+        ```bash
+        venv\Scripts\activate.bat
+        ```
+
+    > 💡 **Vérifiez :** Votre ligne de commande devrait maintenant commencer par `(venv)`.
+
+3.  **Installer les Librairies (Dépendances) :**
+
+      * Installez les paquets requis pour les API Google :
+        ```bash
+        pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+        ```
+
+## Étape 3 : Premier Lancement et Authentification Google (Le Déblocage)
+
+C'est ici que l'application se lie à **votre** compte Gmail.
+
+1.  **Lancer le Script :**
+
+    ```bash
+    python main.py
+    ```
+
+2.  **Autorisation Google :**
+
+      * Votre navigateur Web s'ouvrira automatiquement.
+      * **Choisissez votre compte Gmail personnel.** (Assurez-vous de ne pas prendre le compte du développeur, mais bien le vôtre \!)
+      * Étant donné que votre ami vous a ajouté comme testeur, vous devriez voir l'écran de consentement.
+      * **Cliquez sur "Continuer" ou "Autoriser"** pour donner l'accès en lecture à vos contacts.
+
+    > 🔑 **Important :** Une fois l'autorisation réussie, un fichier **`token.json`** sera créé dans le dossier du projet. Ce fichier est **votre** clé d'accès.
+
+## Étape 4 : Utilisation Quotidienne et Actualisation
+
+  * **Lancement :** Pour utiliser le script à l'avenir, il vous suffit de refaire l'Étape 2 (Activer l'Environnement) et l'Étape 3 (Lancer le Script).
+  * **Actualisation des Contacts :** L'application ne s'actualise pas toute seule. Si vous ajoutez de nouveaux contacts, vous devez **relancer le script** (`python main.py`) pour prendre la dernière version.
+
+-----
+
+### En Cas de Problème
+
+| Problème | Solution |
+| :--- | :--- |
+| **Erreur `ModuleNotFoundError`** | Assurez-vous d'avoir fait l'Étape 2.2 (`.\venv\Scripts\Activate`) avant d'installer les dépendances. |
+| **L'application ne s'ouvre pas sur le bon compte** | Supprimez le fichier **`token.json`** dans le dossier et relancez le script. |
+| **Erreur 403 (Accès Bloqué)** | Demandez à votre ami de vérifier si votre e-mail a bien été ajouté à la liste des **"Utilisateurs testeurs"** dans la Console Google Cloud. |
+
+Ce guide devrait couvrir tous les points critiques pour lui \! Est-ce que ce `README` vous semble complet ?
