@@ -13,6 +13,19 @@ TOKEN_FILE = os.path.join(DOSSIER_SCRIPT, 'token.json')
 
 SCOPES = ['https://www.googleapis.com/auth/contacts.readonly']
 
+def nettoyer_fichiers_json():
+    """Supprime les fichiers JSON (token et client_secret) s'ils existent"""
+    try:
+        if os.path.exists(TOKEN_FILE):
+            os.remove(TOKEN_FILE)
+            print(f"✓ Fichier {TOKEN_FILE} supprimé")
+        
+        if os.path.exists(CLIENT_SECRET_FILE):
+            os.remove(CLIENT_SECRET_FILE)
+            print(f"✓ Fichier {CLIENT_SECRET_FILE} supprimé")
+    except Exception as e:
+        print(f"Erreur lors de la suppression des fichiers JSON: {e}")
+
 def importer_contacts_gmail():
     """Récupère les contacts Gmail de l'utilisateur connecté"""
     creds = None
@@ -56,5 +69,8 @@ def importer_contacts_gmail():
         tel = phones[0]['value'] if phones and 'value' in phones[0] else "Aucun"
 
         contacts.append([nom, tel, email])
+
+    # Suppression automatique des fichiers JSON après l'import
+    nettoyer_fichiers_json()
 
     return contacts

@@ -1,437 +1,425 @@
 import os
+import shutil
 import tkinter as tk
-from tkinter import ttk, messagebox
-import ttkbootstrap as tb
-from ttkbootstrap.constants import *
-from gmail_import import importer_contacts_gmail
+from tkinter import messagebox, filedialog
+from PIL import Image
+import customtkinter as ctk
 
+# --- IMPORT DE VOTRE MODULE GMAIL ---
+try:
+    from gmail_import import importer_contacts_gmail
+except ImportError:
+    # Fonction vide de secours si le fichier n'est pas là
+    def importer_contacts_gmail():
+        return []
 
-# Fichier de sauvegarde
+# ------------------- CONFIGURATION & THEME -------------------
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("blue")
+
+# Chemins des fichiers
 DOSSIER_SCRIPT = os.path.dirname(os.path.abspath(__file__))
 FILENAME = os.path.join(DOSSIER_SCRIPT, "contacts.txt")
-TOKEN_FILE = os.path.join(DOSSIER_SCRIPT, "token.json")
+DOSSIER_IMAGES = os.path.join(DOSSIER_SCRIPT, "avatars")
 
-# Catégories disponibles
-CATEGORIES = ["Tous", "👨‍👩‍👧 Famille", "👥 Amis", "💼 Collaborateurs", "🏪 Magasins", "📋 Autres"]
-CATEGORIES_COULEURS = {
-    "👨‍👩‍👧 Famille": "danger",
-    "👥 Amis": "success",
-    "💼 Collaborateurs": "primary",
-    "🏪 Magasins": "warning",
-    "📋 Autres": "secondary"
-}
+if not os.path.exists(DOSSIER_IMAGES):
+    os.makedirs(DOSSIER_IMAGES)
 
+class ContactApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
 
-# ------------------- Fonctions principales -------------------
-def charger_contacts():
-    contacts = []
-    try:
-        with open(FILENAME, "r", encoding="utf-8") as f:
-            for ligne in f:
-                ligne = ligne.strip()
-                if ligne:
-                    parts = ligne.split(";")
-                    while len(parts) < 4:  # Maintenant 4 champs : nom, tel, mail, catégorie
-                        parts.append("📋 Autres" if len(parts) == 3 else "Non renseigné")
-                    contacts.append(parts[:4])
-    except FileNotFoundError:
-        pass
-    return contacts
+        # --- Configuration de la fenêtre ---
+        self.title("Pocket Contact") # Nouveau nom de l'application
+        self.geometry("1100x700")
+        self.minsize(900, 600)
 
+        # Variables
+        self.contacts = []
+        self.current_image_path = None 
+        self.categories_disponibles = ["Tout voir", "Ami", "Famille", "Travail", "VIP", "Gmail", "Autre"] # Liste pour le filtre
 
-def sauvegarder_contacts():
-    with open(FILENAME, "w", encoding="utf-8") as f:
-        for nom, tel, mail, cat in contacts:
-            f.write(f"{nom};{tel};{mail};{cat}\n")
-    messagebox.showinfo("✅ Sauvegarde", "Contacts enregistrés avec succès !")
-    mettre_a_jour_compteur()
+        # Layout : Grille 1x2
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
+        # --- 1. SIDEBAR (Gauche) ---
+        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
+        self.sidebar_frame.grid_rowconfigure(5, weight=1)
 
-def ajouter_contact():
-    nom = entry_nom.get().strip()
-    tel = entry_tel.get().strip()
-    mail = entry_mail.get().strip() or "Non renseigné"
-    cat = combo_categorie.get()
+        # Logo
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="POCKET CONTACT", font=ctk.CTkFont(size=18, weight="bold"))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-    if not nom or not tel:
-        messagebox.showerror("❌ Erreur", "Nom et téléphone obligatoires")
-        return
-
-    contacts.append([nom, tel, mail, cat])
-    afficher_contacts_par_categorie()
-    sauvegarder_contacts()
-    entry_nom.delete(0, tk.END)
-    entry_tel.delete(0, tk.END)
-    entry_mail.delete(0, tk.END)
-    combo_categorie.set("📋 Autres")
-
-
-def supprimer_contact(nom, tel, mail, cat):
-    if messagebox.askyesno("🗑️ Confirmation", f"Supprimer {nom} ?"):
-        contacts[:] = [c for c in contacts if c != [nom, tel, mail, cat]]
-        afficher_contacts_par_categorie()
-        sauvegarder_contacts()
-
-
-def rechercher_contact():
-    terme = entry_search.get().strip().lower()
-    
-    for widget in frame_cards.winfo_children():
-        widget.destroy()
-    
-    resultats = [c for c in contacts if 
-                 terme in c[0].lower() or terme in c[1].lower() or terme in c[2].lower()]
-    
-    if resultats:
-        afficher_contacts_liste(resultats)
-    else:
-        label_vide = tb.Label(
-            frame_cards, 
-            text="🔍 Aucun résultat trouvé", 
-            font=("Segoe UI", 16),
-            bootstyle="secondary"
-        )
-        label_vide.pack(pady=100)
-
-
-def filtrer_par_categorie(event=None):
-    cat_selectionnee = var_categorie.get()
-    
-    for widget in frame_cards.winfo_children():
-        widget.destroy()
-    
-    if cat_selectionnee == "Tous":
-        contacts_filtres = contacts
-    else:
-        contacts_filtres = [c for c in contacts if c[3] == cat_selectionnee]
-    
-    if contacts_filtres:
-        afficher_contacts_liste(contacts_filtres)
-    else:
-        label_vide = tb.Label(
-            frame_cards, 
-            text=f"📭 Aucun contact dans '{cat_selectionnee}'", 
-            font=("Segoe UI", 16),
-            bootstyle="secondary"
-        )
-        label_vide.pack(pady=100)
-
-
-def afficher_contacts_par_categorie():
-    filtrer_par_categorie()
-
-
-def mettre_a_jour_compteur():
-    label_count.config(text=f"{len(contacts)} contacts")
-
-
-def afficher_contacts_liste(liste_contacts):
-    # Canvas avec scrollbar
-    canvas = tk.Canvas(frame_cards, bg="#f8f9fa", highlightthickness=0)
-    scrollbar = ttk.Scrollbar(frame_cards, orient="vertical", command=canvas.yview)
-    scrollable_frame = ttk.Frame(canvas)
-    
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-    )
-    
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    canvas.configure(yscrollcommand=scrollbar.set)
-    
-    # Container principal avec padding
-    main_container = tb.Frame(scrollable_frame)
-    main_container.pack(fill="both", expand=True, padx=20, pady=20)
-    
-    # Afficher les contacts en cartes (3 par ligne)
-    row, col = 0, 0
-    
-    for idx, (nom, tel, mail, cat) in enumerate(liste_contacts):
-        # Couleur selon la catégorie
-        couleur = CATEGORIES_COULEURS.get(cat, "info")
+        # Boutons Menu
+        self.btn_home = ctk.CTkButton(self.sidebar_frame, text="Liste Contacts", command=self.show_home_frame)
+        self.btn_home.grid(row=1, column=0, padx=20, pady=10)
         
-        # Frame externe pour les bordures arrondies
-        card_container = tb.Frame(main_container, bootstyle="light")
-        card_container.grid(row=row, column=col, padx=15, pady=15, sticky="nsew")
+        self.btn_add = ctk.CTkButton(self.sidebar_frame, text="Nouveau Contact", fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), command=self.show_add_frame)
+        self.btn_add.grid(row=2, column=0, padx=20, pady=10)
+
+        # Bouton Gmail
+        self.btn_gmail = ctk.CTkButton(self.sidebar_frame, text="Connecter Gmail", fg_color="#DB4437", hover_color="#C53929", command=self.action_import_gmail)
+        self.btn_gmail.grid(row=3, column=0, padx=20, pady=(20, 10))
+
+        # Settings en bas
+        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Thème:", anchor="w")
+        self.appearance_mode_label.grid(row=6, column=0, padx=20, pady=(10, 0))
+        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
+                                                                       command=self.change_appearance_mode_event)
+        self.appearance_mode_optionemenu.grid(row=7, column=0, padx=20, pady=(10, 20))
+
+        # --- 2. ZONE PRINCIPALE (Droite) ---
         
-        # Carte de contact avec style personnalisé
-        card = tb.Frame(card_container, bootstyle=couleur, relief="flat", borderwidth=0)
-        card.pack(fill="both", expand=True, padx=2, pady=2)
+        # FRAME : LISTE DES CONTACTS
+        self.home_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.home_frame.grid_columnconfigure(0, weight=1)
+        self.home_frame.grid_rowconfigure(2, weight=1)
         
-        # Badge catégorie en haut
-        badge_cat = tb.Label(
-            card,
-            text=cat,
-            font=("Segoe UI", 9),
-            bootstyle=f"inverse-{couleur}",
-            padding=(8, 3)
-        )
-        badge_cat.pack(pady=(10, 5))
+        # Header avec Titre + Recherche/Filtre
+        self.header_frame = ctk.CTkFrame(self.home_frame, fg_color="transparent")
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=20)
         
-        # Avatar avec initiales
-        initiales = "".join([n[0].upper() for n in nom.split()[:2]])
-        avatar = tb.Label(
-            card, 
-            text=initiales, 
-            font=("Segoe UI", 22, "bold"),
-            bootstyle=f"inverse-{couleur}",
-            width=4,
-            padding=10
-        )
-        avatar.pack(pady=(5, 10))
+        self.lbl_title_home = ctk.CTkLabel(self.header_frame, text="Mes Contacts", font=ctk.CTkFont(size=24, weight="bold"))
+        self.lbl_title_home.pack(side="left")
+
+        # CONTENEUR DROIT (Filtre Catégorie + Recherche)
+        self.right_header_container = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.right_header_container.pack(side="right")
         
-        # Nom
-        label_nom = tb.Label(
-            card, 
-            text=nom, 
-            font=("Segoe UI", 14, "bold"),
-            bootstyle=couleur,
-            wraplength=220
-        )
-        label_nom.pack(padx=10)
-        
-        # Séparateur
-        sep = ttk.Separator(card, orient="horizontal")
-        sep.pack(fill="x", padx=20, pady=10)
-        
-        # Téléphone
-        frame_tel = tb.Frame(card, bootstyle=couleur)
-        frame_tel.pack(fill="x", padx=15, pady=3)
-        
-        icon_tel = tb.Label(frame_tel, text="📱", font=("Segoe UI", 11), bootstyle=couleur)
-        icon_tel.pack(side="left", padx=(0, 5))
-        
-        label_tel = tb.Label(
-            frame_tel, 
-            text=tel, 
-            font=("Segoe UI", 10),
-            bootstyle=couleur
-        )
-        label_tel.pack(side="left")
-        
-        # Email
-        frame_mail = tb.Frame(card, bootstyle=couleur)
-        frame_mail.pack(fill="x", padx=15, pady=3)
-        
-        icon_mail = tb.Label(frame_mail, text="📧", font=("Segoe UI", 11), bootstyle=couleur)
-        icon_mail.pack(side="left", padx=(0, 5))
-        
-        label_mail = tb.Label(
-            frame_mail, 
-            text=mail[:25] + "..." if len(mail) > 25 else mail, 
-            font=("Segoe UI", 10),
-            bootstyle=couleur
-        )
-        label_mail.pack(side="left")
-        
-        # Bouton supprimer
-        btn_del = tb.Button(
-            card,
-            text="🗑️ Supprimer",
-            bootstyle=f"outline-{couleur}",
-            command=lambda n=nom, t=tel, m=mail, c=cat: supprimer_contact(n, t, m, c),
-            width=18
-        )
-        btn_del.pack(pady=15)
-        
-        # Configurer la grille
-        main_container.columnconfigure(col, weight=1, minsize=280)
-        col += 1
-        if col > 2:
-            col = 0
-            row += 1
-    
-    canvas.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
+        # --- FILTRE PAR CATÉGORIE ---
+        self.combo_filter_cat = ctk.CTkOptionMenu(self.right_header_container, 
+                                                  values=self.categories_disponibles, 
+                                                  command=self.filter_contacts)
+        self.combo_filter_cat.set("Tout voir")
+        self.combo_filter_cat.pack(side="left", padx=(0, 20))
 
 
-def rafraichir():
-    entry_search.delete(0, tk.END)
-    var_categorie.set("Tous")
-    afficher_contacts_par_categorie()
+        # BARRE DE RECHERCHE + ICONE LOUPE
+        self.search_container = ctk.CTkFrame(self.right_header_container, fg_color="transparent")
+        self.search_container.pack(side="right")
 
+        self.icon_search = ctk.CTkLabel(self.search_container, text="🔍", font=("Arial", 18))
+        self.icon_search.pack(side="left", padx=(0, 5))
 
-def importer_gmail_ui():
-    try:
-        contacts_gmail = importer_contacts_gmail()
-        if not contacts_gmail:
-            messagebox.showinfo("📧 Gmail", "Aucun contact trouvé dans Gmail.")
+        self.search_var = tk.StringVar()
+        self.search_entry = ctk.CTkEntry(self.search_container, width=300, placeholder_text="Rechercher (Nom, Mail, Tel)...", textvariable=self.search_var)
+        self.search_entry.pack(side="left")
+        self.search_entry.bind("<KeyRelease>", self.filter_contacts)
+
+        # Zone de défilement
+        self.scrollable_frame = ctk.CTkScrollableFrame(self.home_frame, label_text="Répertoire")
+        self.scrollable_frame.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+
+        # FRAME : AJOUTER CONTACT
+        self.add_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.add_frame.grid_columnconfigure(0, weight=1)
+
+        self.lbl_title_add = ctk.CTkLabel(self.add_frame, text="Créer un nouveau contact", font=ctk.CTkFont(size=24, weight="bold"))
+        self.lbl_title_add.pack(pady=20, padx=20, anchor="w")
+
+        self.form_container = ctk.CTkFrame(self.add_frame, corner_radius=15)
+        self.form_container.pack(pady=20, padx=60, fill="both", expand=True)
+        self.create_form()
+
+        # Chargement initial
+        self.charger_contacts()
+        self.show_home_frame()
+
+    # --- GESTION DE L'INTERFACE ---
+    def show_home_frame(self):
+        self.add_frame.grid_forget()
+        self.home_frame.grid(row=0, column=1, sticky="nsew")
+        self.refresh_contact_list()
+
+    def show_add_frame(self):
+        self.home_frame.grid_forget()
+        self.add_frame.grid(row=0, column=1, sticky="nsew")
+        self.reset_form()
+
+    def change_appearance_mode_event(self, new_appearance_mode: str):
+        ctk.set_appearance_mode(new_appearance_mode)
+
+    def reset_form(self):
+        self.entry_nom.delete(0, "end")
+        self.entry_tel.delete(0, "end")
+        self.entry_mail.delete(0, "end")
+        self.current_image_path = None
+        self.lbl_img_preview.configure(text="Aucune image sélectionnée")
+
+    # --- CONSTRUCTION DU FORMULAIRE D'AJOUT ---
+    def create_form(self):
+        self.form_container.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(self.form_container, text="Nom Complet :").grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
+        self.entry_nom = ctk.CTkEntry(self.form_container, placeholder_text="Ex: Jean Dupont", height=40)
+        self.entry_nom.grid(row=1, column=0, columnspan=2, padx=20, pady=5, sticky="ew")
+
+        ctk.CTkLabel(self.form_container, text="Téléphone :").grid(row=2, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.entry_tel = ctk.CTkEntry(self.form_container, placeholder_text="Ex: 06 12 34 56 78", height=40)
+        self.entry_tel.grid(row=3, column=0, padx=20, pady=5, sticky="ew")
+
+        ctk.CTkLabel(self.form_container, text="Email :").grid(row=2, column=1, padx=20, pady=(10, 5), sticky="w")
+        self.entry_mail = ctk.CTkEntry(self.form_container, placeholder_text="Ex: jean@mail.com", height=40)
+        self.entry_mail.grid(row=3, column=1, padx=20, pady=5, sticky="ew")
+
+        ctk.CTkLabel(self.form_container, text="Catégorie :").grid(row=4, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.combo_cat = ctk.CTkOptionMenu(self.form_container, values=[c for c in self.categories_disponibles if c != "Tout voir"])
+        self.combo_cat.grid(row=5, column=0, padx=20, pady=5, sticky="ew")
+
+        ctk.CTkLabel(self.form_container, text="Photo de profil :").grid(row=4, column=1, padx=20, pady=(10, 5), sticky="w")
+        self.btn_photo = ctk.CTkButton(self.form_container, text="Choisir une photo", command=self.choisir_photo, fg_color="gray")
+        self.btn_photo.grid(row=5, column=1, padx=20, pady=5, sticky="ew")
+        
+        self.lbl_img_preview = ctk.CTkLabel(self.form_container, text="Aucune image", font=("Arial", 10))
+        self.lbl_img_preview.grid(row=6, column=1, padx=20, sticky="w")
+
+        self.btn_save = ctk.CTkButton(self.form_container, text="Enregistrer le Contact", height=50, font=ctk.CTkFont(size=15, weight="bold"), command=self.ajouter_contact)
+        self.btn_save.grid(row=7, column=0, columnspan=2, padx=20, pady=40, sticky="ew")
+
+    # --- LOGIQUE MODIFICATION (EDIT) ---
+    def open_edit_modal(self, contact):
+        """Ouvre une fenêtre pop-up pour modifier le contact"""
+        edit_window = ctk.CTkToplevel(self)
+        edit_window.title("Modifier Contact")
+        edit_window.geometry("400x550")
+        edit_window.grab_set()
+        
+        # Variables locales pour cette fenêtre
+        self.edit_img_path = contact['img']
+
+        # UI Modification
+        ctk.CTkLabel(edit_window, text=f"Modifier {contact['nom']}", font=("Arial", 18, "bold")).pack(pady=10)
+
+        ctk.CTkLabel(edit_window, text="Nom :").pack(anchor="w", padx=20)
+        entry_edit_nom = ctk.CTkEntry(edit_window)
+        entry_edit_nom.insert(0, contact['nom'])
+        entry_edit_nom.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(edit_window, text="Téléphone :").pack(anchor="w", padx=20)
+        entry_edit_tel = ctk.CTkEntry(edit_window)
+        entry_edit_tel.insert(0, contact['tel'])
+        entry_edit_tel.pack(fill="x", padx=20, pady=5)
+        
+        ctk.CTkLabel(edit_window, text="Email :").pack(anchor="w", padx=20)
+        entry_edit_mail = ctk.CTkEntry(edit_window)
+        entry_edit_mail.insert(0, contact['mail'])
+        entry_edit_mail.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(edit_window, text="Catégorie :").pack(anchor="w", padx=20, pady=(10,0))
+        cat_menu = ctk.CTkOptionMenu(edit_window, values=[c for c in self.categories_disponibles if c != "Tout voir"])
+        cat_menu.set(contact['cat'])
+        cat_menu.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(edit_window, text="Photo :").pack(anchor="w", padx=20, pady=(10,0))
+        lbl_curr_img = ctk.CTkLabel(edit_window, text=os.path.basename(contact['img']) if contact['img'] != "None" else "Aucune", text_color="gray")
+        lbl_curr_img.pack(anchor="w", padx=20)
+
+        def changer_photo_edit():
+            filename = filedialog.askopenfilename(title="Nouvelle image", filetypes=[("Images", "*.png *.jpg *.jpeg")])
+            if filename:
+                try:
+                    ext = os.path.splitext(filename)[1]
+                    new_filename = f"{contact['nom'].replace(' ', '_')}_EDIT_{ext}"
+                    destination = os.path.join(DOSSIER_IMAGES, new_filename)
+                    shutil.copy(filename, destination)
+                    self.edit_img_path = destination
+                    lbl_curr_img.configure(text=os.path.basename(destination))
+                except Exception as e:
+                    print(f"Erreur changement photo: {e}")
+
+        btn_change_img = ctk.CTkButton(edit_window, text="Changer Photo", command=changer_photo_edit, fg_color="gray")
+        btn_change_img.pack(fill="x", padx=20, pady=5)
+
+        def sauver_modifs():
+            contact['nom'] = entry_edit_nom.get()
+            contact['tel'] = entry_edit_tel.get()
+            contact['mail'] = entry_edit_mail.get()
+            contact['cat'] = cat_menu.get()
+            contact['img'] = self.edit_img_path
+            
+            self.sauvegarder_contacts_fichier()
+            self.refresh_contact_list()
+            edit_window.destroy()
+            messagebox.showinfo("Succès", "Contact modifié !")
+
+        ctk.CTkButton(edit_window, text="Enregistrer Modifications", command=sauver_modifs).pack(pady=20, padx=20, fill="x")
+
+    # --- FONCTIONS METIER ---
+
+    def charger_contacts(self):
+        self.contacts = []
+        try:
+            with open(FILENAME, "r", encoding="utf-8") as f:
+                for ligne in f:
+                    ligne = ligne.strip()
+                    if ligne:
+                        parts = ligne.split(";")
+                        nom = parts[0] if len(parts) > 0 else "Inconnu"
+                        tel = parts[1] if len(parts) > 1 else ""
+                        mail = parts[2] if len(parts) > 2 else ""
+                        cat = parts[3] if len(parts) > 3 else "Autre"
+                        img = parts[4] if len(parts) > 4 else "None"
+                        self.contacts.append({"nom": nom, "tel": tel, "mail": mail, "cat": cat, "img": img})
+        except FileNotFoundError:
+            pass
+
+    def sauvegarder_contacts_fichier(self):
+        with open(FILENAME, "w", encoding="utf-8") as f:
+            for c in self.contacts:
+                f.write(f"{c['nom']};{c['tel']};{c['mail']};{c['cat']};{c['img']}\n")
+
+    def action_import_gmail(self):
+        try:
+            imported_list = importer_contacts_gmail() 
+            if not imported_list:
+                messagebox.showinfo("Info", "Aucun contact récupéré.")
+                return
+
+            count = 0
+            for item in imported_list:
+                nom = item[0]
+                tel = item[1]
+                mail = item[2]
+                
+                existe = any(c['nom'] == nom for c in self.contacts)
+                if not existe:
+                    new_c = {"nom": nom, "tel": tel, "mail": mail, "cat": "Gmail", "img": "None"}
+                    self.contacts.append(new_c)
+                    count += 1
+            
+            self.sauvegarder_contacts_fichier()
+            self.refresh_contact_list()
+            messagebox.showinfo("Succès", f"{count} contacts Gmail importés !")
+
+        except Exception as e:
+            messagebox.showerror("Erreur Import", f"Une erreur est survenue : {e}")
+
+    def choisir_photo(self):
+        filename = filedialog.askopenfilename(title="Choisir une image", filetypes=[("Images", "*.png *.jpg *.jpeg")])
+        if filename:
+            self.current_image_path = filename
+            self.lbl_img_preview.configure(text=os.path.basename(filename))
+
+    def ajouter_contact(self):
+        nom = self.entry_nom.get().strip()
+        tel = self.entry_tel.get().strip()
+        mail = self.entry_mail.get().strip()
+        cat = self.combo_cat.get()
+
+        if not nom:
+            messagebox.showwarning("Attention", "Le nom est obligatoire.")
             return
 
-        added_count = 0
-        for c in contacts_gmail:
-            # Ajouter une catégorie par défaut pour les imports Gmail
-            c_with_cat = c + ["📋 Autres"]
-            if c_with_cat not in contacts:
-                contacts.append(c_with_cat)
-                added_count += 1
+        final_img_path = "None"
+        if self.current_image_path:
+            try:
+                ext = os.path.splitext(self.current_image_path)[1]
+                new_filename = f"{nom.replace(' ', '_')}_{len(self.contacts)}{ext}"
+                destination = os.path.join(DOSSIER_IMAGES, new_filename)
+                shutil.copy(self.current_image_path, destination)
+                final_img_path = destination
+            except Exception as e:
+                print(f"Erreur copie image: {e}")
 
-        afficher_contacts_par_categorie()
-        sauvegarder_contacts()
-        messagebox.showinfo("✅ Gmail", f"{added_count} contact(s) importé(s) !")
-    except Exception as e:
-        messagebox.showerror("❌ Erreur Gmail", f"Impossible d'importer.\n{e}")
+        new_contact = {"nom": nom, "tel": tel, "mail": mail, "cat": cat, "img": final_img_path}
+        self.contacts.append(new_contact)
+        self.sauvegarder_contacts_fichier()
+        messagebox.showinfo("Succès", "Contact ajouté !")
+        self.show_home_frame()
 
+    def supprimer_contact(self, contact_dict):
+        if messagebox.askyesno("Confirmer", f"Supprimer {contact_dict['nom']} ?"):
+            if contact_dict in self.contacts:
+                self.contacts.remove(contact_dict)
+                self.sauvegarder_contacts_fichier()
+                self.filter_contacts() 
 
-def fermer_application():
-    try:
-        if os.path.exists(TOKEN_FILE):
-            os.remove(TOKEN_FILE)
-            print("[SECURITE] token.json supprimé")
-    except Exception as e:
-        print(f"[ERREUR] {e}")
-    finally:
-        app.destroy()
+    def filter_contacts(self, event=None):
+        """Filtre les contacts selon le texte de la barre de recherche ET la catégorie sélectionnée."""
+        query = self.search_var.get().lower()
+        selected_cat = self.combo_filter_cat.get()
+        
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
 
+        # 1. Filtrage par recherche (Nom, Mail, Tel)
+        matching_contacts = [c for c in self.contacts 
+                             if query in c['nom'].lower() 
+                             or query in c['mail'].lower()
+                             or query in c['tel'].lower()]
 
-# ------------------- Interface graphique -------------------
-app = tb.Window(themename="cosmo")
-app.title("📇 Contacteo - Gestionnaire de Contacts")
-app.geometry("1300x850")
-app.protocol("WM_DELETE_WINDOW", fermer_application)
+        # 2. Filtrage par Catégorie
+        if selected_cat != "Tout voir":
+            final_contacts = [c for c in matching_contacts if c['cat'] == selected_cat]
+        else:
+            final_contacts = matching_contacts
 
-contacts = charger_contacts()
+        for c in final_contacts:
+            self.create_contact_card(c)
 
-# --- En-tête ---
-frame_header = tb.Frame(app, bootstyle="dark")
-frame_header.pack(fill="x", pady=(0, 0))
+    def refresh_contact_list(self):
+        """Affiche TOUS les contacts (vide la recherche et remet le filtre à Tout voir)"""
+        self.search_var.set("") 
+        self.combo_filter_cat.set("Tout voir")
+        self.filter_contacts() # Appelle le filtre avec les valeurs réinitialisées
 
-title = tb.Label(
-    frame_header,
-    text="📇 Contacteo",
-    font=("Segoe UI", 26, "bold"),
-    bootstyle="inverse-dark"
-)
-title.pack(side="left", padx=20, pady=18)
+    def create_contact_card(self, c):
+        # Cadre principal de la carte
+        card = ctk.CTkFrame(self.scrollable_frame, corner_radius=10, fg_color=("white", "gray20"))
+        card.pack(fill="x", pady=5)
 
-label_count = tb.Label(
-    frame_header,
-    text=f"{len(contacts)} contacts",
-    font=("Segoe UI", 13),
-    bootstyle="inverse-dark"
-)
-label_count.pack(side="left", padx=10)
+        # Binding pour le click (Edition) sur le cadre et ses enfants
+        card.bind("<Button-1>", lambda e, x=c: self.open_edit_modal(x))
+        card.configure(cursor="hand2")
 
-# --- Barre de recherche et filtres ---
-frame_search = tb.Frame(app, padding=15)
-frame_search.pack(fill="x", padx=20, pady=15)
+        # Image
+        try:
+            if c['img'] and c['img'] != "None" and os.path.exists(c['img']):
+                my_image = ctk.CTkImage(light_image=Image.open(c['img']), 
+                                      dark_image=Image.open(c['img']), 
+                                      size=(45, 45))
+                img_label = ctk.CTkLabel(card, image=my_image, text="")
+            else:
+                img_label = ctk.CTkLabel(card, text=c['nom'][:2].upper(), width=45, height=45, fg_color="gray", corner_radius=20)
+        except:
+             img_label = ctk.CTkLabel(card, text="?", width=45, height=45, fg_color="gray", corner_radius=20)
 
-# Recherche
-entry_search = tb.Entry(
-    frame_search, 
-    font=("Segoe UI", 12),
-    width=35
-)
-entry_search.pack(side="left", padx=5)
+        img_label.grid(row=0, column=0, rowspan=2, padx=15, pady=10)
+        img_label.bind("<Button-1>", lambda e, x=c: self.open_edit_modal(x))
 
-btn_search = tb.Button(
-    frame_search,
-    text="🔍 Rechercher",
-    command=rechercher_contact,
-    bootstyle="primary",
-    width=15
-)
-btn_search.pack(side="left", padx=5)
+        # Infos
+        info_container = ctk.CTkFrame(card, fg_color="transparent")
+        info_container.grid(row=0, column=1, sticky="w", padx=(0, 10), pady=(10,0))
+        
+        lbl_nom = ctk.CTkLabel(info_container, text=c['nom'], font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_nom.pack(side="left")
+        lbl_nom.bind("<Button-1>", lambda e, x=c: self.open_edit_modal(x))
 
-btn_refresh = tb.Button(
-    frame_search,
-    text="↻ Réinitialiser",
-    command=rafraichir,
-    bootstyle="secondary",
-    width=15
-)
-btn_refresh.pack(side="left", padx=5)
+        # Badge Catégorie
+        cat_color = "gray"
+        if c['cat'] == "Ami": cat_color = "#3B8ED0"
+        elif c['cat'] == "Travail": cat_color = "#E04F5F"
+        elif c['cat'] == "VIP": cat_color = "#E5B700"
+        elif c['cat'] == "Gmail": cat_color = "#555"
+        
+        lbl_cat = ctk.CTkLabel(info_container, text=f" {c['cat']} ", text_color=cat_color, font=ctk.CTkFont(size=12, weight="bold"))
+        lbl_cat.pack(side="left", padx=10)
+        lbl_cat.bind("<Button-1>", lambda e, x=c: self.open_edit_modal(x))
 
-# Séparateur vertical
-sep_vertical = ttk.Separator(frame_search, orient="vertical")
-sep_vertical.pack(side="left", fill="y", padx=15)
+        # Ligne 2 : Tel | Mail
+        infos_text = f"📞 {c['tel']}  |  ✉ {c['mail']}"
+        lbl_infos = ctk.CTkLabel(card, text=infos_text, text_color="gray50", font=ctk.CTkFont(size=12))
+        lbl_infos.grid(row=1, column=1, sticky="w", padx=(0, 10), pady=(0,10))
+        lbl_infos.bind("<Button-1>", lambda e, x=c: self.open_edit_modal(x))
 
-# Filtre par catégorie
-tb.Label(frame_search, text="Catégorie:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(10, 5))
+        # Actions (Bouton Supprimer)
+        card.grid_columnconfigure(2, weight=1)
+        btn_del = ctk.CTkButton(card, text="✕", width=30, height=30, fg_color="transparent", text_color="red", hover_color="gray85",
+                                command=lambda x=c: self.supprimer_contact(x))
+        btn_del.grid(row=0, column=3, rowspan=2, padx=15)
 
-var_categorie = tk.StringVar(value="Tous")
-for cat in CATEGORIES:
-    rb = tb.Radiobutton(
-        frame_search,
-        text=cat,
-        variable=var_categorie,
-        value=cat,
-        bootstyle="toolbutton",
-        command=filtrer_par_categorie
-    )
-    rb.pack(side="left", padx=2)
-
-# --- Zone des cartes de contacts ---
-frame_cards = tb.Frame(app, bootstyle="light")
-frame_cards.pack(fill="both", expand=True, padx=0, pady=0)
-
-# --- Formulaire d'ajout ---
-frame_form = tb.Labelframe(
-    app,
-    text="➕ Ajouter un nouveau contact",
-    bootstyle="info",
-    padding=18
-)
-frame_form.pack(fill="x", padx=20, pady=15)
-
-form_inner = tb.Frame(frame_form)
-form_inner.pack()
-
-tb.Label(form_inner, text="Nom:", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, padx=8, sticky="w")
-entry_nom = tb.Entry(form_inner, width=22, font=("Segoe UI", 10))
-entry_nom.grid(row=0, column=1, padx=8)
-
-tb.Label(form_inner, text="Téléphone:", font=("Segoe UI", 10, "bold")).grid(row=0, column=2, padx=8, sticky="w")
-entry_tel = tb.Entry(form_inner, width=22, font=("Segoe UI", 10))
-entry_tel.grid(row=0, column=3, padx=8)
-
-tb.Label(form_inner, text="Email:", font=("Segoe UI", 10, "bold")).grid(row=0, column=4, padx=8, sticky="w")
-entry_mail = tb.Entry(form_inner, width=28, font=("Segoe UI", 10))
-entry_mail.grid(row=0, column=5, padx=8)
-
-tb.Label(form_inner, text="Catégorie:", font=("Segoe UI", 10, "bold")).grid(row=0, column=6, padx=8, sticky="w")
-combo_categorie = tb.Combobox(
-    form_inner,
-    values=[c for c in CATEGORIES if c != "Tous"],
-    state="readonly",
-    width=18,
-    font=("Segoe UI", 10)
-)
-combo_categorie.set("📋 Autres")
-combo_categorie.grid(row=0, column=7, padx=8)
-
-btn_add = tb.Button(
-    form_inner,
-    text="➕ Ajouter",
-    command=ajouter_contact,
-    bootstyle="success",
-    width=13
-)
-btn_add.grid(row=0, column=8, padx=12)
-
-# --- Pied de page ---
-frame_footer = tb.Frame(app, bootstyle="secondary")
-frame_footer.pack(fill="x", pady=(0, 0))
-
-btn_gmail = tb.Button(
-    frame_footer,
-    text="📧 Importer depuis Gmail",
-    command=importer_gmail_ui,
-    bootstyle="warning",
-    width=25
-)
-btn_gmail.pack(side="right", padx=10, pady=12)
-
-btn_save = tb.Button(
-    frame_footer,
-    text="💾 Sauvegarder",
-    command=sauvegarder_contacts,
-    bootstyle="success",
-    width=20
-)
-btn_save.pack(side="right", padx=5, pady=12)
-
-# Afficher les contacts au démarrage
-afficher_contacts_par_categorie()
-
-app.mainloop()
+if __name__ == "__main__":
+    app = ContactApp()
+    app.mainloop()
